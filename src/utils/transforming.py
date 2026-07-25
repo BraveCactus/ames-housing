@@ -1,10 +1,127 @@
 import pandas as pd
 import numpy as np
-from sklearn.impute import SimpleImputer
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, RobustScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
+
+class NumericalImputer(BaseEstimator, TransformerMixin):
+    """
+    Заполняет пропущенные значения в числовых признаках
+    """
+    def __init__(self, 
+                 num_cols=None, 
+                 impute_strategy='simple_imputer',    
+                 imputer_params: dict = dict(),             
+                 ):
+        self.num_cols = num_cols
+        self.impute_strategy = impute_strategy # Возможные стратегии: simple_imputer, knn_imputer, iterative_imputer
+        self.imputer_params =  imputer_params
+        self.imputer_ = None 
+        self.num_cols_ = None
+
+    def fit(self, X: pd.DataFrame, y: pd.Series = None) -> None:
+        """Обучение на данных""" 
+           
+        if isinstance(X, pd.DataFrame):
+            if self.num_cols is None:
+                self.num_cols_ = X.select_dtypes(include=[np.number]).columns.tolist()
+            else:
+                self.num_cols_ = self.num_cols
+        else:
+            print(f"X must be pandas DataFrame, got {type(X)}")
+
+        missing_cols = [col for col in self.num_cols_ if col not in X.columns]
+        if missing_cols:
+            raise ValueError(f"Колонки не найдены: {missing_cols}")
+
+        X_numeric = X[self.num_cols]
+
+        if self.impute_strategy == 'simple_imputer':
+            self.imputer_ = SimpleImputer(**self.imputer_params)
+        elif self.impute_strategy == 'knn_imputer':
+            self.imputer_ = KNNImputer(**self.imputer_params)
+        elif self.impute_strategy == 'iterative_imputer':
+            self.imputer_ = IterativeImputer(**self.imputer_params)
+        else:
+            raise ValueError(
+                f"Unknown impute strategy: {self.impute_strategy}"
+                f"Available strategies: simple_imputer, knn_imputer, iterative_imputer"
+            )
+        
+        self.imputer_.fit(X_numeric)
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Заполняет пропущенные значения в данных"""
+        if self.num_cols_ is None:
+            raise RuntimeError("nImputer must be fitted before transform. Call fit() first.")
+        X_numeric = X[self.num_cols_]
+        X_numeric_imputed = self.imputer_.transform(X_numeric) # Возвращает только те столбцы, где были пропуски
+
+        X_imputed = X.copy()
+        X_imputed[self.num_cols] = X_numeric_imputed
+
+        return X_imputed
+
+
+class NumericalScaler(BaseEstimator, TransformerMixin):
+    """Масштабирует числовые признаки"""
+    def __init__(self, 
+                 num_cols=None, 
+                 scaler_type='standard_scaler', 
+                 scaler_params: dict = dict()
+                 ):
+        
+        self.num_cols = num_cols
+        self.scaler_type = scaler_type # Возможные типы: standard_scaler, min_max_scaler, robust_scaler
+        self.scaler_params = scaler_params
+        self.scaler_ = None
+        self.num_cols_ = None
+
+    def fit(self, X: pd.DataFrame, y: pd.Series = None) -> None:
+        """Обучение на данных"""
+        if isinstance(X, pd.DataFrame):
+            if self.num_cols is None:
+                self.num_cols_ = X.select_dtypes(include=[np.number]).columns.tolist()
+            else:
+                self.num_cols_ = self.num_cols
+
+        missing_cols = [col for col in self.num_cols_ if col not in X.columns]
+        if missing_cols:
+            raise ValueError(f"Колонки не найдены: {missing_cols}")
+
+        X_numeric = X[self.num_cols]
+
+        if self.scaler_type == 'standard_scaler':
+            self.scaler_ = StandardScaler(**self.scaler_params)
+        elif self.scaler_type == 'min_max_scaler':
+            self.scaler_ = MinMaxScaler(**self.scaler_params)
+        elif self.scaler_type == 'robust_scaler':
+            self.scaler_ = RobustScaler(**self.scaler_params)
+        else:
+            raise ValueError(
+                f"Unknown scaler: {self.scaler_type}"
+                f"Available scalers: standard_scaler, min_max_scaler, robust_scaler"
+            )
+        
+        self.scaler_.fit(X_numeric)
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Масштабирует числовые данные"""
+
+        if self.num_cols_ is None:
+            raise RuntimeError("Scaler must be fitted before transform.")
+        X_numeric = X[self.num_cols_]
+        X_numeric_scaled = self.scaler_.transform(X_numeric) # Возвращает только те столбцы, где были пропуски
+
+        X_scaled = X.copy()
+        X_scaled[self.num_cols] = X_numeric_scaled
+
+        return X_scaled
 
 class CategoricalTransformer(BaseEstimator, TransformerMixin):
     """
@@ -126,8 +243,7 @@ class NumericalTransformer(BaseEstimator, TransformerMixin):
         params:
             X: pd.DataFrame или np.array - входные данные для обучения
             y: pd.Series или np.array - целевая переменная
-        """
-        # Определяем колонки
+        """        
         if isinstance(X, pd.DataFrame):
             self.num_cols_ = self.num_cols if self.num_cols else X.select_dtypes(include=[np.number]).columns.tolist()
         else:
