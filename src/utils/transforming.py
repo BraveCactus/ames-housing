@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
-from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, RobustScaler
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder, OrdinalEncoder, MinMaxScaler, RobustScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -66,7 +66,6 @@ class NumericalImputer(BaseEstimator, TransformerMixin):
 
         return X_imputed
 
-
 class NumericalScaler(BaseEstimator, TransformerMixin):
     """Масштабирует числовые признаки"""
     def __init__(self, 
@@ -116,12 +115,138 @@ class NumericalScaler(BaseEstimator, TransformerMixin):
         if self.num_cols_ is None:
             raise RuntimeError("Scaler must be fitted before transform.")
         X_numeric = X[self.num_cols_]
-        X_numeric_scaled = self.scaler_.transform(X_numeric) # Возвращает только те столбцы, где были пропуски
+        X_numeric_scaled = self.scaler_.transform(X_numeric) # Возващает только те столбцы, где были пропуски
 
         X_scaled = X.copy()
         X_scaled[self.num_cols] = X_numeric_scaled
 
         return X_scaled
+
+class CategoricalImputer(BaseEstimator, TransformerMixin):
+    """Заполняет пропущенные значения в категориальных признаках"""
+
+    def __init__(self, 
+                 cat_cols=None, 
+                 filler_strategy='mode', 
+                 filler_params: dict = dict(),                 
+                ):
+        self.cat_cols = cat_cols
+        self.filler_strategy = filler_strategy # Возможные стратегии: mode, constant
+        self.filler_params = filler_params
+        self.filler_ = None
+        self.cat_cols_ = None
+
+    def fit(self, X: pd.DataFrame, y: pd.Series = None) -> None:
+        """Обучение на данных"""
+
+        if isinstance(X, pd.DataFrame):
+            if self.cat_cols is None:
+                self.cat_cols_ = X.select_dtypes(include=[object]).columns.tolist()
+            else:
+                self.cat_cols_ = self.cat_cols
+
+        missing_cols = [col for col in self.cat_cols_ if col not in X.columns]
+        if missing_cols:
+            raise ValueError(f"Колонки не найдены: {missing_cols}")
+
+        if self.filler_strategy == 'mode':
+            self.filler_ = SimpleImputer(strategy='most_frequent')
+        elif self.filler_strategy == 'constant':
+            self.filler_ = SimpleImputer(**self.filler_params)
+        else:
+            raise ValueError(
+                f"Unknown impute strategy: {self.filler_strategy}"
+                f"Available strategies: mode, constant"
+            )
+        
+        self.filler_.fit(X[self.cat_cols_])
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Заполняет пропущенные значения в данных"""
+
+        if self.cat_cols_ is None:
+            raise RuntimeError("Imputer must be fitted before transform.")
+        X_categorical = X[self.cat_cols_]
+        X_categorical_imputed = self.filler_.transform(X_categorical) # Возвращает только те столбцы, где были пропуски
+
+        X_imputed = X.copy()
+        X_imputed[self.cat_cols_] = X_categorical_imputed
+
+        return X_imputed
+
+    def get_feature_names_out(self, input_features=None):
+        return self.cat_cols_ if self.cat_cols_ is not None else []
+
+class CategoricalEncoder(BaseEstimator, TransformerMixin):
+    """"Кодирует категориальные признаки"""
+
+    def __init__(self, 
+                 cat_cols=None, 
+                 encoder_strategy='one_hot_encoding', 
+                 encoder_params: dict = dict(),                 
+                ):
+        self.cat_cols = cat_cols
+        self.encoder_strategy = encoder_strategy # Возможные стратегии: one_hot_encoding, ordinal_encoding
+        self.encoder_params = encoder_params
+        self.encoder_ = None
+        self.cat_cols_ = None
+
+    def fit(self, X: pd.DataFrame, y: pd.Series = None) -> None:
+        """Обучение на данных"""
+
+        if isinstance(X, pd.DataFrame):
+            if self.cat_cols is None:
+                self.cat_cols_ = X.select_dtypes(include=[object]).columns.tolist()
+            else:
+                self.cat_cols_ = self.cat_cols
+
+        missing_cols = [col for col in self.cat_cols_ if col not in X.columns]
+        if missing_cols:
+            raise ValueError(f"Колонки не найдены: {missing_cols}")    
+
+        if self.encoder_strategy == 'one_hot_encoding':
+            self.encoder_ = OneHotEncoder(**self.encoder_params)
+        elif self.encoder_strategy == 'ordinal_encoding':
+            self.encoder_ = OrdinalEncoder(**self.encoder_params)
+        else:
+            raise ValueError(
+                f"Unknown encoder strategy: {self.encoder_strategy}"
+                f"Available strategies: one_hot_encoding, ordinal_encoding"
+            )
+
+        self.encoder_.fit(X[self.cat_cols_])
+
+        if self.encoder_strategy == 'one_hot_encoding':
+            self.encoded_columns_ = self.encoder_.get_feature_names_out(self.cat_cols_)
+        else:
+            self.encoded_columns_ = self.cat_cols_
+
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Кодирует категориальные признаки"""
+        if self.cat_cols_ is None:
+            raise RuntimeError("Encoder must be fitted before transform. Call fit() first.")
+        
+        X_categorical = X[self.cat_cols_]
+        X_encoded = self.encoder_.transform(X_categorical)
+        
+        # !Для OneHotEncoder возвращается разреженная матрица!
+        if self.encoder_strategy == 'one_hot_encoding':
+            X_encoded = X_encoded.toarray()        
+        
+        X_encoded_df = pd.DataFrame(
+            X_encoded,
+            columns=self.encoded_columns_,
+            index=X.index
+        )        
+        
+        X_transformed = X.drop(columns=self.cat_cols_)
+        X_transformed = pd.concat([X_transformed, X_encoded_df], axis=1)
+        
+        return X_transformed                          
+                          
 
 class CategoricalTransformer(BaseEstimator, TransformerMixin):
     """

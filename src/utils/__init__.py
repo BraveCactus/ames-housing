@@ -1,6 +1,6 @@
 from .preprocessing import impute_numerical_data, fill_categorical_data
 from .utils import check_missing_values, visualize_categorical_features, show_metrics
-from .transforming import CategoricalTransformer, NumericalTransformer, NumericalImputer, NumericalScaler
+from .transforming import CategoricalTransformer, NumericalTransformer, NumericalImputer, NumericalScaler, CategoricalImputer, CategoricalEncoder
 
 __all__ = ['impute_numerical_data', 
            'fill_categorical_data', 
@@ -10,4 +10,6 @@ __all__ = ['impute_numerical_data',
            'CategoricalTransformer',
            'NumericalTransformer',
            'NumericalImputer',
-           'NumericalScaler']
+           'NumericalScaler',
+           'CategoricalImputer',
+           'CategoricalEncoder']
