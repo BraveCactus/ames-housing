@@ -54,6 +54,10 @@ class NumericalImputer(BaseEstimator, TransformerMixin):
         self.imputer_.fit(X_numeric)
         return self
 
+    def get_feature_names_out(self, input_features=None):
+        """Возвращает имена колонок после трансформации"""
+        return self.num_cols_ if self.num_cols_ is not None else []
+
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Заполняет пропущенные значения в данных"""
         if self.num_cols_ is None:
@@ -62,7 +66,9 @@ class NumericalImputer(BaseEstimator, TransformerMixin):
         X_numeric_imputed = self.imputer_.transform(X_numeric) # Возвращает только те столбцы, где были пропуски
 
         X_imputed = X.copy()
-        X_imputed[self.num_cols] = X_numeric_imputed
+        X_imputed[self.num_cols] = X_numeric_imputed 
+
+        print(X_imputed.shape)       
 
         return X_imputed
 
@@ -122,6 +128,10 @@ class NumericalScaler(BaseEstimator, TransformerMixin):
 
         return X_scaled
 
+    def get_feature_names_out(self, input_features=None):
+        """Возвращает имена колонок после трансформации"""
+        return self.num_cols_ if self.num_cols_ is not None else []
+
 class CategoricalImputer(BaseEstimator, TransformerMixin):
     """Заполняет пропущенные значения в категориальных признаках"""
 
@@ -171,11 +181,12 @@ class CategoricalImputer(BaseEstimator, TransformerMixin):
         X_categorical_imputed = self.filler_.transform(X_categorical) # Возвращает только те столбцы, где были пропуски
 
         X_imputed = X.copy()
-        X_imputed[self.cat_cols_] = X_categorical_imputed
+        X_imputed[self.cat_cols_] = X_categorical_imputed        
 
         return X_imputed
 
     def get_feature_names_out(self, input_features=None):
+        """Возвращает имена колонок после трансформации"""
         return self.cat_cols_ if self.cat_cols_ is not None else []
 
 class CategoricalEncoder(BaseEstimator, TransformerMixin):
@@ -206,7 +217,9 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
             raise ValueError(f"Колонки не найдены: {missing_cols}")    
 
         if self.encoder_strategy == 'one_hot_encoding':
-            self.encoder_ = OneHotEncoder(**self.encoder_params)
+            if 'handle_unknown' not in self.encoder_params:
+                self.encoder_params['handle_unknown'] = 'ignore'
+            self.encoder_ = OneHotEncoder(**self.encoder_params)            
         elif self.encoder_strategy == 'ordinal_encoding':
             self.encoder_ = OrdinalEncoder(**self.encoder_params)
         else:
@@ -217,7 +230,7 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
 
         self.encoder_.fit(X[self.cat_cols_])
 
-        if self.encoder_strategy == 'one_hot_encoding':
+        if self.encoder_strategy == 'one_hot_encoding':            
             self.encoded_columns_ = self.encoder_.get_feature_names_out(self.cat_cols_)
         else:
             self.encoded_columns_ = self.cat_cols_
@@ -243,9 +256,15 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         )        
         
         X_transformed = X.drop(columns=self.cat_cols_)
-        X_transformed = pd.concat([X_transformed, X_encoded_df], axis=1)
+        X_transformed = pd.concat([X_transformed, X_encoded_df], axis=1)    
         
-        return X_transformed                          
+        return X_transformed  
+
+    def get_feature_names_out(self, input_features=None):
+        """Возвращает имена колонок после трансформации"""
+        if self.encoder_strategy == 'one_hot_encoding' and self.encoded_columns_ is not None:
+            return self.encoded_columns_.tolist()
+        return self.cat_cols_ if self.cat_cols_ is not None else []                        
                           
 
 class CategoricalTransformer(BaseEstimator, TransformerMixin):
