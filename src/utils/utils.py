@@ -42,6 +42,31 @@ def visualize_categorical_features(df: pd.DataFrame, cat_cols: list) -> None:
     plt.tight_layout()
     plt.show()
 
+def visualize_numerical_features(df: pd.DataFrame, num_cols: list) -> None:
+    """
+    Визуализирует распределение числовых признаков с помощью боксплотов.
+    params:
+        df: pd.DataFrame - входной DataFrame для визуализации
+        num_cols: list - список названий числовых признаков для визуализации    
+    """
+    n_cols = len(num_cols)
+    n_plots_per_row = 3
+    n_rows = math.ceil(n_cols / n_plots_per_row)
+
+    fig, axes = plt.subplots(n_rows, n_plots_per_row, figsize=(18, 5*n_rows))
+    axes = axes.flatten()
+
+    for i, col in enumerate(num_cols):
+        df[col].plot(kind='box', ax=axes[i])
+        axes[i].set_title(col)
+
+    # Скрываем лишние пустые графики
+    for i in range(len(num_cols), len(axes)):
+        axes[i].set_visible(False)
+
+    plt.tight_layout()
+    plt.show()
+
 def show_metrics(y_preds, y_true): 
     y_mean = y_true.mean()  
 
