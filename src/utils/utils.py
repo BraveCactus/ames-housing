@@ -67,6 +67,24 @@ def visualize_numerical_features(df: pd.DataFrame, num_cols: list) -> None:
     plt.tight_layout()
     plt.show()
 
+def detect_outliers_iqr(df: pd.DataFrame, col: str) -> tuple[pd.DataFrame, float, float]:
+    """
+    Находит выбросы в числовом столбце с помощью метода межквартильного размаха (IQR) и возвращает DataFrame с выбросами и границы.
+    params:
+        df: pd.DataFrame - входной DataFrame для анализа
+        col: str - название числового столбца для поиска выбросов
+    return:
+        tuple[pd.DataFrame, float, float] - кортеж из DataFrame с выбросами, нижней и верхней границей
+    """
+    threshold = 1.5    
+    Q1 = df[col].quantile(0.25)
+    Q3 = df[col].quantile(0.75)
+    IQR = Q3 - Q1
+    lower = Q1 - threshold * IQR
+    upper = Q3 + threshold * IQR
+    outliers = df[(df[col] < lower) | (df[col] > upper)]
+    return outliers, lower, upper
+
 def show_metrics(y_preds, y_true): 
     y_mean = y_true.mean()  
 
