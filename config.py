@@ -6,7 +6,7 @@ class Config:
     dataset_path: Path = Path("data")
     model_storage_path: Path = Path("models")
 
-    eda_condition: bool = True
+    eda_condition: bool = False
 
     def __post_init__(self):
         self.train_data_path = self.dataset_path / "train.csv"
