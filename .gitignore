@@ -167,6 +167,7 @@ cython_debug/
 
 #Specific folders
 models/ 
+ml_flow_server/ 
 
 #Specific files
 dev.ipynb
